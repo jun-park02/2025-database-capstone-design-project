@@ -54,6 +54,6 @@ def protected():
     current_user = get_jwt_identity()
     claims = get_jwt()
     return jsonify(identity=current_user, claims=claims), 200
-
+ dkddddd
 if __name__ == "__main__":
     app.run(debug=True)
