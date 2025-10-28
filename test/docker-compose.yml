@@ -10,9 +10,10 @@ services:
       - ./db/mysql/init:/docker-entrypoint-initdb.d
     environment:
       MYSQL_ROOT_PASSWORD: 3379
-      # MYSQL_DATABASE:
-      # MYSQL_CHARSET: utf8bm4 (인코딩 문자)
-      # MYSQL_COLLATION: utf8mb4_unicode_ci (대조문자)
+      MYSQL_DATABASE: "appdb"
+      MYSQL_CHARSET: utf8bm4 (인코딩 문자)
+      MYSQL_COLLATION: utf8mb4_unicode_ci (대조문자)
+      TZ: Asia/Seoul
       # MYSQL_USER: user (생성할 유저 이름)
       # MYSQL_PASSWORD: 1234 (유저 비밀번호)
-      TZ: Asia/Seoul
+      
