@@ -1,7 +1,7 @@
 USE appdb;
 
 CREATE TABLE IF NOT EXISTS `users` (
-  `user_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,        
+  `user_id` VARCHAR(255) NOT NULL,        
   `password` VARCHAR(255) NOT NULL,                         
   `user_email` VARCHAR(255) NOT NULL,                       
   `status` TINYINT UNSIGNED NOT NULL DEFAULT 1,             
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 
 CREATE TABLE IF NOT EXISTS `vehicle_counts` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    `user_id` BIGINT UNSIGNED NOT NULL,
+    `user_id` VARCHAR(255) NOT NULL,
     `location` VARCHAR(255) NOT NULL,
     `date` DATE NOT NULL,
     `time` TIME NOT NULL,
