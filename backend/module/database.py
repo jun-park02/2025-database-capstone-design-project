@@ -12,6 +12,7 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
 DB_CHARSET = os.getenv("DB_CHARSET")
 
+# Todo.예외처리
 # 데이터베이스 연결
 db = pymysql.connect(
     host=DB_HOST,
