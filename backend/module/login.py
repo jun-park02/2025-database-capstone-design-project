@@ -2,6 +2,7 @@ from flask import jsonify, make_response
 from flask_restx import Resource, Namespace, reqparse
 from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity
 from flask_bcrypt import Bcrypt
+from mysql.connector import errorcode, IntegrityError
 from .database import cursor, db
 
 bcrypt = Bcrypt()
@@ -11,7 +12,45 @@ auth_ns = Namespace("Auth", path="/auth", description="로그인관련 APIs")
 auth_refresh_ns = Namespace("Refresh", path="/refresh", description="리프레시 토큰을 사용하여 JWT 토큰을 재발급 하는 API")
 
 # ----- 회원가입 들어갈 곳 -----
+register_parser = reqparse.RequestParser()
+register_parser.add_argument("name", type=str, location="form", required=True)
+register_parser.add_argument("user_id", type=str, location="form", required=True)
+register_parser.add_argument("password", type=str, location="form", required=True)
 
+@auth_ns.route("/register")
+class Register(Resource):
+    @auth_ns.expect(register_parser)
+    def post(self):
+        args = register_parser.parse_args()
+        name = args.get("name")
+        user_id = args.get("user_id")
+        password = args.get("password")
+
+       
+        password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
+
+        try:
+            sql = """
+            INSERT INTO users (name, user_id, password_hash)
+            VALUES (%s, %s, %s)
+            """
+            cursor.execute(sql, (name, user_id, password_hash))
+            db.commit()
+
+            return {
+                "msg": "회원가입 성공",
+                "name": name,
+                "user_id": user_id,
+            }, 201
+
+        except IntegrityError as e:
+            # user_id UNIQUE 제약 조건 위반
+            if e.errno == errorcode.ER_DUP_ENTRY:
+                return {
+                    "msg": "이미 사용 중인 아이디입니다."
+                }, 400
+            # 다른 에러는 그대로 올려서 확인
+            raise
 # ----------------------------
     
 login_parser = reqparse.RequestParser()
