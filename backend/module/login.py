@@ -2,6 +2,9 @@ from flask import jsonify, make_response
 from flask_restx import Resource, Namespace, reqparse
 from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity
 from flask_bcrypt import Bcrypt
+# Todo. 불러오지 말고 아래에 import db 한거 사용해서 하는걸로 수정하기
+# from .database import cursor, db <- 이거 사용
+# login 처럼 cursor 사용해서 하기
 from mysql.connector import errorcode, IntegrityError
 from .database import cursor, db
 
@@ -26,7 +29,9 @@ class Register(Resource):
         user_id = args.get("user_id")
         password = args.get("password")
 
-       
+        # 해시화 하는걸로 수정하기
+        # DB에다가 해시된걸 저장 -> 코드에서 미리 해시하고 db에 저장
+        # 아마도 hashed = bcrypt.hashpw(password, bcrypt.gensalt()) 이거
         password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
 
         try:
