@@ -1,6 +1,9 @@
 from flask_restx import Resource, Namespace, reqparse
 from flask_jwt_extended import jwt_required, get_jwt_identity
-
+from flask import Flask, request
+from werkzeug.datastructures import FileStorage
+from werkzeug.utils import secure_filename
+import os
 # 네임스페이스명 = Namespace('Swagger에 들어갈 제목', description='Swagger에 들어갈 설명')
 video_ns = Namespace("Video", path="/video", description="비디오 관련 APIs")
 
@@ -8,6 +11,8 @@ video_ns = Namespace("Video", path="/video", description="비디오 관련 APIs"
 upload_parser = reqparse.RequestParser()
 # 여기에 add_argument (module/login.py 처럼). 아래는 예시
 # upload_parset.add_argument("video", type=FileStorage, location="files", required=True)
+
+upload_parser.add_argument("video", type=FileStorage, location="files", required=True)
 
 @video_ns.route("/video")
 class Video(Resource):
@@ -25,5 +30,14 @@ class Video(Resource):
         # werkzeug.utils의 secure_filename() 함수 사용하기
 
         # ----------- 여기서 부터 구현 -----------
+        video_file: FileStorage = args.get("video")
 
+        user_id = str(get_jwt_identity())
+        filename = secure_filename(video_file.filename)
+
+        user_dir = os.path.join("backend", "uploaded_video", user_id)
+        os.makedirs(user_dir, exist_ok=True)
+
+        save_path = os.path.join(save_path, filename)
+        video_file.save(save_path)
 # ----- ↑↑↑ 비디오 업로드 들어갈 곳 ↑↑↑ -----
