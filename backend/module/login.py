@@ -32,14 +32,15 @@ class Register(Resource):
         # 해시화 하는걸로 수정하기
         # DB에다가 해시된걸 저장 -> 코드에서 미리 해시하고 db에 저장
         # 아마도 hashed = bcrypt.hashpw(password, bcrypt.gensalt()) 이거
-        password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
+        bcrypt_hashed_password = bcrypt.hashpw(password,bcrypt.gensalt())
+
 
         try:
             sql = """
-            INSERT INTO users (name, user_id, password_hash)
+            INSERT INTO users (name, user_id, password)
             VALUES (%s, %s, %s)
             """
-            cursor.execute(sql, (name, user_id, password_hash))
+            cursor.execute(sql, (name, user_id, bcrypt_hashed_password))
             db.commit()
 
             return {
@@ -49,12 +50,10 @@ class Register(Resource):
             }, 201
 
         except IntegrityError as e:
-            # user_id UNIQUE 제약 조건 위반
             if e.errno == errorcode.ER_DUP_ENTRY:
                 return {
                     "msg": "이미 사용 중인 아이디입니다."
                 }, 400
-            # 다른 에러는 그대로 올려서 확인
             raise
 # ----------------------------
     
