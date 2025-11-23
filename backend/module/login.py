@@ -5,7 +5,7 @@ from flask_bcrypt import Bcrypt
 # Todo. 불러오지 말고 아래에 import db 한거 사용해서 하는걸로 수정하기
 # from .database import cursor, db <- 이거 사용
 # login 처럼 cursor 사용해서 하기
-from mysql.connector import errorcode, IntegrityError
+from pymysql.err import IntegrityError
 from .database import cursor, db
 
 bcrypt = Bcrypt()
@@ -16,7 +16,6 @@ auth_refresh_ns = Namespace("Refresh", path="/refresh", description="리프레�
 
 # ----- 회원가입 들어갈 곳 -----
 register_parser = reqparse.RequestParser()
-register_parser.add_argument("name", type=str, location="form", required=True)
 register_parser.add_argument("user_id", type=str, location="form", required=True)
 register_parser.add_argument("password", type=str, location="form", required=True)
 
@@ -25,36 +24,36 @@ class Register(Resource):
     @auth_ns.expect(register_parser)
     def post(self):
         args = register_parser.parse_args()
-        name = args.get("name")
         user_id = args.get("user_id")
         password = args.get("password")
 
         # 해시화 하는걸로 수정하기
         # DB에다가 해시된걸 저장 -> 코드에서 미리 해시하고 db에 저장
         # 아마도 hashed = bcrypt.hashpw(password, bcrypt.gensalt()) 이거
-        bcrypt_hashed_password = bcrypt.hashpw(password,bcrypt.gensalt())
-
+        password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
 
         try:
             sql = """
-            INSERT INTO users (name, user_id, password)
-            VALUES (%s, %s, %s)
+            INSERT INTO users (user_id, password_hash)
+            VALUES (%s, %s)
             """
-            cursor.execute(sql, (name, user_id, bcrypt_hashed_password))
+            cursor.execute(sql, (user_id, password_hash))
             db.commit()
 
             return {
                 "msg": "회원가입 성공",
-                "name": name,
                 "user_id": user_id,
             }, 201
 
         except IntegrityError as e:
-            if e.errno == errorcode.ER_DUP_ENTRY:
+            # user_id UNIQUE 제약 조건 위반
+            if e.args[0] == 1062:
                 return {
                     "msg": "이미 사용 중인 아이디입니다."
                 }, 400
-            raise
+            
+            db.rollback()
+            return {"msg": "회원가입 중 오류 발생", "error": str(e)}, 500
 # ----------------------------
     
 login_parser = reqparse.RequestParser()
