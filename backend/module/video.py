@@ -4,6 +4,9 @@ from flask import Flask, request
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 import os
+from .database import cursor, db
+import pymysql
+
 # 네임스페이스명 = Namespace('Swagger에 들어갈 제목', description='Swagger에 들어갈 설명')
 video_ns = Namespace("Video", path="/video", description="비디오 관련 APIs")
 
@@ -40,4 +43,25 @@ class Video(Resource):
 
         save_path = os.path.join(save_path, filename)
         video_file.save(save_path)
+
+        sql = """create table video
+        CREATE TABLE IF NOT EXISTS videos (
+            user_id VARCHAR(255) NOT NULL,
+            file VARCHAR(255) NOT NULL,
+            upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+
+        sql = """
+        INSERT INTO videos (user_id, file)
+        VALUES (%s, %s)
+        """
+        cursor.execute(sql, (user_id, save_path))
+        db.commit()
+
+        return {
+            "msg": "비디오 업로드 성공",
+            "file": save_path
+        }, 201
+    
 # ----- ↑↑↑ 비디오 업로드 들어갈 곳 ↑↑↑ -----
