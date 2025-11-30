@@ -18,6 +18,7 @@ auth_refresh_ns = Namespace("Refresh", path="/refresh", description="리프레�
 register_parser = reqparse.RequestParser()
 register_parser.add_argument("user_id", type=str, location="form", required=True)
 register_parser.add_argument("password", type=str, location="form", required=True)
+register_parser.add_argument("user_email", type=str, location="form", required=True)
 
 @auth_ns.route("/register")
 class Register(Resource):
@@ -26,6 +27,7 @@ class Register(Resource):
         args = register_parser.parse_args()
         user_id = args.get("user_id")
         password = args.get("password")
+        user_email = args.get("user_email")
 
         # 해시화 하는걸로 수정하기
         # DB에다가 해시된걸 저장 -> 코드에서 미리 해시하고 db에 저장
@@ -34,10 +36,10 @@ class Register(Resource):
 
         try:
             sql = """
-            INSERT INTO users (user_id, password_hash)
-            VALUES (%s, %s)
+            INSERT INTO users (user_id, password_hash, user_email)
+            VALUES (%s, %s, %s)
             """
-            cursor.execute(sql, (user_id, password_hash))
+            cursor.execute(sql, (user_id, password_hash, user_email))
             db.commit()
 
             return {
@@ -60,6 +62,7 @@ login_parser = reqparse.RequestParser()
 login_parser.add_argument("user_id", type=str, location="form", required=True)
 login_parser.add_argument("password", type=str, location="form", required=True)
 
+# 리프레시 토큰은 쿠키에?
 @auth_ns.route("/login")
 class Auth(Resource):
     @auth_ns.expect(login_parser)
@@ -94,6 +97,7 @@ class Auth(Resource):
             }, 401
 
 
+# ----------------------------------------------------------------------------------------------------------------
 # refresh 토큰만 허용하기 위해, "refresh=True"를 사용
 @auth_ns.route("/refresh")
 class Auth(Resource):
@@ -110,3 +114,51 @@ class Auth(Resource):
         identity = get_jwt_identity()
         access_token = create_access_token(identity=identity)
         return jsonify(access_token=access_token)
+    
+# ----------------------------------------------------------------------------------------------------------------
+@auth_ns.route("/init-users-table")
+class InitUsersTable(Resource):
+    @auth_ns.doc(
+        description="users 테이블이 없으면 생성합니다.",
+        responses={
+            200: "이미 users 테이블이 존재함",
+            201: "users 테이블 생성 완료",
+            500: "테이블 생성 중 오류",
+        },
+    )
+    def post(self):
+        try:
+            # 1) 테이블 존재 여부 확인
+            cursor.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM information_schema.tables
+                WHERE table_schema = DATABASE()
+                  AND table_name = 'users'
+                """
+            )
+            row = cursor.fetchone()
+            exists = (row and row["cnt"] > 0)
+
+            if exists:
+                return {"msg": "users 테이블이 이미 존재합니다."}, 200
+
+            # 2) 없으면 생성
+            cursor.execute(
+                """
+                CREATE TABLE users (
+                    user_id VARCHAR(255) PRIMARY KEY NOT NULL,
+                    password_hash VARCHAR(255) NOT NULL,
+                    user_email VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    status ENUM('ACTIVE', 'INACTIVE', 'BANNED') NOT NULL DEFAULT 'ACTIVE'
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                """
+            )
+            db.commit()
+            return {"msg": "users 테이블 생성 완료"}, 201
+
+        except Exception as e:
+            db.rollback()
+            return {"msg": "users 테이블 생성 중 오류 발생", "error": str(e)}, 500
