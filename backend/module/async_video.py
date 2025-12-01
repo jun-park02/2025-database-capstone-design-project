@@ -2,15 +2,12 @@
 from flask_restx import Namespace, Resource, reqparse
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from celery import Celery
-import os, time
 from .database import cursor, db
-
-import cv2
 from ultralytics import YOLO
-
+import os, time
 import json
-
 import pymysql
+import cv2
 
 async_ns = Namespace("Async", path="/async", description="Celery/Redis 영상 비동기 작업 APIs")
 
@@ -295,28 +292,6 @@ def process_video_task(self, user_id: str, file_path: str, video_id: int):
 
     try:
         result = count_vehicles_in_video(self, user_id, input_path)
-
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS vehicle_counts (
-            vehicle_count_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            video_id BIGINT UNSIGNED NOT NULL,
-            user_id VARCHAR(255) NOT NULL,
-            total_forward INT NOT NULL DEFAULT 0,
-            total_backward INT NOT NULL DEFAULT 0,
-            per_class_forward JSON NULL,
-            per_class_backward JSON NULL,
-            line_a_x INT NULL,
-            line_a_y INT NULL,
-            line_b_x INT NULL,
-            line_b_y INT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                       
-            PRIMARY KEY (vehicle_count_id),
-            KEY idx_vehicle_counts_video (video_id),
-            CONSTRAINT fk_vehicle_counts_video FOREIGN KEY (video_id)
-            REFERENCES videos(video_id) ON DELETE CASCADE ON UPDATE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        """)
 
         cursor.execute("""
             INSERT INTO vehicle_counts (

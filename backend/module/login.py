@@ -12,9 +12,8 @@ bcrypt = Bcrypt()
 
 # 네임스페이스명 = Namespace('Swagger에 들어갈 제목', description='Swagger에 들어갈 설명')
 auth_ns = Namespace("Auth", path="/auth", description="로그인관련 APIs")
-auth_refresh_ns = Namespace("Refresh", path="/refresh", description="리프레시 토큰을 사용하여 JWT 토큰을 재발급 하는 API")
 
-# ----- 회원가입 들어갈 곳 -----
+# ---------------------------------------- 회원가입 ----------------------------------------
 register_parser = reqparse.RequestParser()
 register_parser.add_argument("user_id", type=str, location="form", required=True)
 register_parser.add_argument("password", type=str, location="form", required=True)
@@ -22,6 +21,14 @@ register_parser.add_argument("user_email", type=str, location="form", required=T
 
 @auth_ns.route("/register")
 class Register(Resource):
+    @auth_ns.doc(
+            description="회원가입",
+            security=[{"BearerAuth": []}],
+            responses={
+                201: "회원가입 성공",
+                400: "이미 사용중인 아이디"
+            }
+    )
     @auth_ns.expect(register_parser)
     def post(self):
         args = register_parser.parse_args()
@@ -29,9 +36,6 @@ class Register(Resource):
         password = args.get("password")
         user_email = args.get("user_email")
 
-        # 해시화 하는걸로 수정하기
-        # DB에다가 해시된걸 저장 -> 코드에서 미리 해시하고 db에 저장
-        # 아마도 hashed = bcrypt.hashpw(password, bcrypt.gensalt()) 이거
         password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
 
         try:
@@ -62,9 +66,16 @@ login_parser = reqparse.RequestParser()
 login_parser.add_argument("user_id", type=str, location="form", required=True)
 login_parser.add_argument("password", type=str, location="form", required=True)
 
-# 리프레시 토큰은 쿠키에?
 @auth_ns.route("/login")
 class Auth(Resource):
+    @auth_ns.doc(
+            description="id와 password를 입력받아 Access 토큰 발급",
+            security=[{"BearerAuth": []}],
+            responses={
+                200: "access_token 발급 성공",
+                401: "잘못된 id 또는 password"
+            }
+    )
     @auth_ns.expect(login_parser)
     def post(self):
         args = login_parser.parse_args()
@@ -114,51 +125,3 @@ class Auth(Resource):
         identity = get_jwt_identity()
         access_token = create_access_token(identity=identity)
         return jsonify(access_token=access_token)
-    
-# ----------------------------------------------------------------------------------------------------------------
-@auth_ns.route("/init-users-table")
-class InitUsersTable(Resource):
-    @auth_ns.doc(
-        description="users 테이블이 없으면 생성합니다.",
-        responses={
-            200: "이미 users 테이블이 존재함",
-            201: "users 테이블 생성 완료",
-            500: "테이블 생성 중 오류",
-        },
-    )
-    def post(self):
-        try:
-            # 1) 테이블 존재 여부 확인
-            cursor.execute(
-                """
-                SELECT COUNT(*) AS cnt
-                FROM information_schema.tables
-                WHERE table_schema = DATABASE()
-                  AND table_name = 'users'
-                """
-            )
-            row = cursor.fetchone()
-            exists = (row and row["cnt"] > 0)
-
-            if exists:
-                return {"msg": "users 테이블이 이미 존재합니다."}, 200
-
-            # 2) 없으면 생성
-            cursor.execute(
-                """
-                CREATE TABLE users (
-                    user_id VARCHAR(255) PRIMARY KEY NOT NULL,
-                    password_hash VARCHAR(255) NOT NULL,
-                    user_email VARCHAR(255) NOT NULL,
-                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    status ENUM('ACTIVE', 'INACTIVE', 'BANNED') NOT NULL DEFAULT 'ACTIVE'
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-                """
-            )
-            db.commit()
-            return {"msg": "users 테이블 생성 완료"}, 201
-
-        except Exception as e:
-            db.rollback()
-            return {"msg": "users 테이블 생성 중 오류 발생", "error": str(e)}, 500

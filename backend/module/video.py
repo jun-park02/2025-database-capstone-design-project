@@ -3,21 +3,16 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask import Flask, request
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
-import os
 from .database import cursor, db
-import pymysql
 from datetime import datetime
-
 from module.async_video import process_video_task
+import pymysql
+import os
 
 # 네임스페이스명 = Namespace('Swagger에 들어갈 제목', description='Swagger에 들어갈 설명')
 video_ns = Namespace("Video", path="/video", description="비디오 관련 APIs")
 
-# ----- ↓↓↓ 비디오 업로드 들어갈 곳 ↓↓↓ -----
 upload_parser = reqparse.RequestParser()
-# 여기에 add_argument (module/login.py 처럼). 아래는 예시
-# upload_parset.add_argument("video", type=FileStorage, location="files", required=True)
-
 upload_parser.add_argument("video", type=FileStorage, location="files", required=True)
 upload_parser.add_argument("region", type=str, location="form", required=True)  # 지역
 upload_parser.add_argument("date", type=str, location="form", required=True)    # YYYY-MM-DD
@@ -88,26 +83,6 @@ class Video(Resource):
         print("abs_path:", os.path.abspath(save_path))
         print("exists:", os.path.exists(save_path))
         print("size:", os.path.getsize(save_path) if os.path.exists(save_path) else None)
-
-        sql = """
-        CREATE TABLE IF NOT EXISTS videos (
-            video_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            user_id VARCHAR(255) NOT NULL,
-            file_path VARCHAR(1024) NOT NULL,
-            task_id VARCHAR(255) NOT NULL,
-            region VARCHAR(255) NOT NULL,
-            recorded_at DATETIME NOT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            status ENUM('PROCESSING', 'COMPLETED', 'FAIL', 'DELETED') NOT NULL DEFAULT 'PROCESSING',
-
-            PRIMARY KEY (video_id),
-            KEY idx_videos_user_created (user_id, created_at),
-            CONSTRAINT fk_videos_user FOREIGN KEY (user_id) REFERENCES users(user_id)
-              ON DELETE CASCADE ON UPDATE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        """
-
-        cursor.execute(sql)
 
         cursor.execute("""
             INSERT INTO videos (user_id, file_path, task_id, region, recorded_at, status)
