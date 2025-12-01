@@ -10,6 +10,14 @@ function Login() {
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+  const [forgotPasswordData, setForgotPasswordData] = useState({
+    userId: '',
+    email: '',
+  });
+  const [forgotPasswordError, setForgotPasswordError] = useState('');
+  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
+  const [isForgotPasswordLoading, setIsForgotPasswordLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -117,7 +125,16 @@ function Login() {
               <input type="checkbox" />
               <span>로그인 상태 유지</span>
             </label>
-            <a href="#" className="forgot-password">비밀번호 찾기</a>
+            <a 
+              href="#" 
+              className="forgot-password"
+              onClick={(e) => {
+                e.preventDefault();
+                setIsForgotPasswordOpen(true);
+              }}
+            >
+              비밀번호 찾기
+            </a>
           </div>
 
           <button type="submit" className="login-button" disabled={isLoading}>
@@ -127,10 +144,138 @@ function Login() {
 
         <div className="login-footer">
           <p>
-            계정이 없으신가요? <a href="#">회원가입</a>
+            계정이 없으신가요? <a href="#" onClick={(e) => { e.preventDefault(); navigate('/signup'); }}>회원가입</a>
           </p>
         </div>
       </div>
+
+      {/* 비밀번호 찾기 모달 */}
+      {isForgotPasswordOpen && (
+        <div className="modal-overlay" onClick={() => {
+          setIsForgotPasswordOpen(false);
+          setForgotPasswordData({ userId: '', email: '' });
+          setForgotPasswordError('');
+          setForgotPasswordSuccess(false);
+        }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>비밀번호 찾기</h2>
+              <button 
+                className="modal-close-button" 
+                onClick={() => {
+                  setIsForgotPasswordOpen(false);
+                  setForgotPasswordData({ userId: '', email: '' });
+                  setForgotPasswordError('');
+                  setForgotPasswordSuccess(false);
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {forgotPasswordSuccess ? (
+                <div className="success-message">
+                  <p>비밀번호 재설정 링크가 이메일로 전송되었습니다.</p>
+                  <p>이메일을 확인해주세요.</p>
+                </div>
+              ) : (
+                <form 
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setForgotPasswordError('');
+
+                    if (!forgotPasswordData.userId || !forgotPasswordData.email) {
+                      setForgotPasswordError('아이디와 이메일을 모두 입력해주세요.');
+                      return;
+                    }
+
+                    setIsForgotPasswordLoading(true);
+
+                    try {
+                      const formDataToSend = new FormData();
+                      formDataToSend.append('user_id', forgotPasswordData.userId);
+                      formDataToSend.append('user_email', forgotPasswordData.email);
+
+                      const response = await fetch('http://localhost:5000/auth/forgot-password', {
+                        method: 'POST',
+                        body: formDataToSend,
+                      });
+
+                      const data = await response.json();
+
+                      if (!response.ok) {
+                        setForgotPasswordError(data.message || '비밀번호 찾기에 실패했습니다. 아이디와 이메일을 확인해주세요.');
+                        setIsForgotPasswordLoading(false);
+                        return;
+                      }
+
+                      // 성공
+                      setForgotPasswordSuccess(true);
+                      setIsForgotPasswordLoading(false);
+                    } catch (err) {
+                      console.error('Forgot password error:', err);
+                      setForgotPasswordError('서버에 연결할 수 없습니다. 나중에 다시 시도해주세요.');
+                      setIsForgotPasswordLoading(false);
+                    }
+                  }}
+                  className="forgot-password-form"
+                >
+                  {forgotPasswordError && (
+                    <div className="error-message">{forgotPasswordError}</div>
+                  )}
+
+                  <div className="form-group">
+                    <label htmlFor="forgotUserId">아이디</label>
+                    <input
+                      type="text"
+                      id="forgotUserId"
+                      name="userId"
+                      value={forgotPasswordData.userId}
+                      onChange={(e) => {
+                        setForgotPasswordData(prev => ({
+                          ...prev,
+                          userId: e.target.value,
+                        }));
+                        setForgotPasswordError('');
+                      }}
+                      placeholder="아이디를 입력하세요"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="forgotEmail">이메일</label>
+                    <input
+                      type="email"
+                      id="forgotEmail"
+                      name="email"
+                      value={forgotPasswordData.email}
+                      onChange={(e) => {
+                        setForgotPasswordData(prev => ({
+                          ...prev,
+                          email: e.target.value,
+                        }));
+                        setForgotPasswordError('');
+                      }}
+                      placeholder="이메일을 입력하세요"
+                      required
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="forgot-password-button" 
+                    disabled={isForgotPasswordLoading}
+                  >
+                    {isForgotPasswordLoading ? '전송 중...' : '비밀번호 재설정 링크 전송'}
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

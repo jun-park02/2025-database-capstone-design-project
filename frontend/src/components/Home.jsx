@@ -123,7 +123,7 @@ function Home() {
       const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('video', selectedFile);
-      formData.append('location', location);
+      formData.append('region', location);
       formData.append('date', date);
       formData.append('time', time);
 

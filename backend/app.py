@@ -8,12 +8,16 @@ from module.test import test_ns
 from initApp import create_app
 from dotenv import load_dotenv
 import os, datetime
+from module.init_db import init_db
+
 
 load_dotenv()
 
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 JWT_ACCESS_TOKEN_EXPIRES = datetime.timedelta(hours=3)
 JWT_REFRESH_TOKEN_EXPIRES = datetime.timedelta(days=7)
+
+init_db()
 
 app = create_app()
 

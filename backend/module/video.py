@@ -38,7 +38,9 @@ class Video(Resource):
     @video_ns.expect(upload_parser)
     @jwt_required()
     def post(self):
+        print(1)
         args = upload_parser.parse_args()
+        print(args)
         # args.get으로 필요한 정보, 비디오 파일 받아오기
 
         # 아래 코드를 사용하면 identity에 user_id가 들어감
@@ -55,6 +57,10 @@ class Video(Resource):
         region: str = (args.get("region") or "").strip()
         date_s: str = (args.get("date") or "").strip()
         time_s: str = (args.get("time") or "").strip()
+
+        print(region)
+        print(date_s)
+        print(time_s)
 
         if not region:
             return {"msg": "region 값이 필요합니다."}, 400
