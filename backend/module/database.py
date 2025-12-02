@@ -75,6 +75,24 @@ def execute(sql: str, params=None) -> int:
             cur.close()
         conn.close()
 
+def execute_lastrowid(sql: str, params=None) -> int:
+    """INSERT/UPDATE/DELETE"""
+    conn = get_conn()
+    cur = None
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, params)
+        lastrowid = cur.lastrowid
+        conn.commit()
+        return lastrowid
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        if cur:
+            cur.close()
+        conn.close()
+
 def executemany(sql: str, seq_params) -> int:
     conn = get_conn()
     cur = None

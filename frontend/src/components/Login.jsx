@@ -14,6 +14,8 @@ function Login() {
   const [forgotPasswordData, setForgotPasswordData] = useState({
     userId: '',
     email: '',
+    newPassword: '',
+    newPasswordConfirm: '',
   });
   const [forgotPasswordError, setForgotPasswordError] = useState('');
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
@@ -153,7 +155,7 @@ function Login() {
       {isForgotPasswordOpen && (
         <div className="modal-overlay" onClick={() => {
           setIsForgotPasswordOpen(false);
-          setForgotPasswordData({ userId: '', email: '' });
+          setForgotPasswordData({ userId: '', email: '', newPassword: '', newPasswordConfirm: '' });
           setForgotPasswordError('');
           setForgotPasswordSuccess(false);
         }}>
@@ -164,7 +166,7 @@ function Login() {
                 className="modal-close-button" 
                 onClick={() => {
                   setIsForgotPasswordOpen(false);
-                  setForgotPasswordData({ userId: '', email: '' });
+                  setForgotPasswordData({ userId: '', email: '', newPassword: '', newPasswordConfirm: '' });
                   setForgotPasswordError('');
                   setForgotPasswordSuccess(false);
                 }}
@@ -176,8 +178,8 @@ function Login() {
             <div className="modal-body">
               {forgotPasswordSuccess ? (
                 <div className="success-message">
-                  <p>비밀번호 재설정 링크가 이메일로 전송되었습니다.</p>
-                  <p>이메일을 확인해주세요.</p>
+                  <p>비밀번호가 성공적으로 재설정되었습니다.</p>
+                  <p>새 비밀번호로 로그인해주세요.</p>
                 </div>
               ) : (
                 <form 
@@ -185,8 +187,18 @@ function Login() {
                     e.preventDefault();
                     setForgotPasswordError('');
 
-                    if (!forgotPasswordData.userId || !forgotPasswordData.email) {
-                      setForgotPasswordError('아이디와 이메일을 모두 입력해주세요.');
+                    if (!forgotPasswordData.userId || !forgotPasswordData.email || !forgotPasswordData.newPassword || !forgotPasswordData.newPasswordConfirm) {
+                      setForgotPasswordError('모든 필수 정보를 입력해주세요.');
+                      return;
+                    }
+
+                    if (forgotPasswordData.newPassword.length < 6) {
+                      setForgotPasswordError('새 비밀번호는 최소 6자 이상이어야 합니다.');
+                      return;
+                    }
+
+                    if (forgotPasswordData.newPassword !== forgotPasswordData.newPasswordConfirm) {
+                      setForgotPasswordError('새 비밀번호가 일치하지 않습니다.');
                       return;
                     }
 
@@ -196,6 +208,7 @@ function Login() {
                       const formDataToSend = new FormData();
                       formDataToSend.append('user_id', forgotPasswordData.userId);
                       formDataToSend.append('user_email', forgotPasswordData.email);
+                      formDataToSend.append('new_password', forgotPasswordData.newPassword);
 
                       const response = await fetch('http://localhost:5000/auth/forgot-password', {
                         method: 'POST',
@@ -263,12 +276,50 @@ function Login() {
                     />
                   </div>
 
+                  <div className="form-group">
+                    <label htmlFor="newPassword">새 비밀번호</label>
+                    <input
+                      type="password"
+                      id="newPassword"
+                      name="newPassword"
+                      value={forgotPasswordData.newPassword}
+                      onChange={(e) => {
+                        setForgotPasswordData(prev => ({
+                          ...prev,
+                          newPassword: e.target.value,
+                        }));
+                        setForgotPasswordError('');
+                      }}
+                      placeholder="새 비밀번호를 입력하세요 (최소 6자)"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="newPasswordConfirm">새 비밀번호 확인</label>
+                    <input
+                      type="password"
+                      id="newPasswordConfirm"
+                      name="newPasswordConfirm"
+                      value={forgotPasswordData.newPasswordConfirm}
+                      onChange={(e) => {
+                        setForgotPasswordData(prev => ({
+                          ...prev,
+                          newPasswordConfirm: e.target.value,
+                        }));
+                        setForgotPasswordError('');
+                      }}
+                      placeholder="새 비밀번호를 다시 입력하세요"
+                      required
+                    />
+                  </div>
+
                   <button 
                     type="submit" 
                     className="forgot-password-button" 
                     disabled={isForgotPasswordLoading}
                   >
-                    {isForgotPasswordLoading ? '전송 중...' : '비밀번호 재설정 링크 전송'}
+                    {isForgotPasswordLoading ? '재설정 중...' : '비밀번호 재설정'}
                   </button>
                 </form>
               )}

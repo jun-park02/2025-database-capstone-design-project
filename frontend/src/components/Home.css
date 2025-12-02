@@ -34,6 +34,23 @@
   font-size: 0.95rem;
 }
 
+.traffic-stats-button {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.traffic-stats-button:hover {
+  background: #5568d3;
+  transform: translateY(-1px);
+}
+
 .logout-button {
   background: #f44336;
   color: white;
@@ -49,6 +66,42 @@
 .logout-button:hover {
   background: #d32f2f;
   transform: translateY(-1px);
+}
+
+.deactivate-button {
+  background: #9e9e9e;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.deactivate-button:hover {
+  background: #757575;
+  transform: translateY(-1px);
+}
+
+.deactivate-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.deactivate-feedback {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.deactivate-feedback.error {
+  color: #c62828;
+}
+
+.deactivate-feedback.success {
+  color: #1b5e20;
 }
 
 .home-main {
@@ -78,9 +131,26 @@
 }
 
 .welcome-card p {
-  margin: 0;
+  margin: 0 0 1.5rem 0;
   color: #666;
   font-size: 1.1rem;
+}
+
+.welcome-traffic-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.welcome-traffic-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
 }
 
 .user-card {
@@ -671,6 +741,15 @@
   border: 1px solid #f44336;
 }
 
+.modal-success {
+  color: #1b5e20;
+  background: #e8f5e9;
+  border-radius: 8px;
+  border: 1px solid #66bb6a;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
 .task-detail {
   display: flex;
   flex-direction: column;
@@ -681,6 +760,32 @@
   background: #f9f9f9;
   border-radius: 8px;
   padding: 1.5rem;
+}
+
+.delete-video-button {
+  width: 100%;
+  margin-top: 1rem;
+  background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.delete-video-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(244, 67, 54, 0.3);
+}
+
+.delete-video-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .detail-section h3 {

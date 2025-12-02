@@ -20,6 +20,12 @@ function Home() {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isLoadingTaskDetail, setIsLoadingTaskDetail] = useState(false);
   const [taskDetailError, setTaskDetailError] = useState('');
+  const [isDeletingVideo, setIsDeletingVideo] = useState(false);
+  const [deleteVideoError, setDeleteVideoError] = useState('');
+  const [deleteVideoMessage, setDeleteVideoMessage] = useState('');
+  const [isDeactivatingAccount, setIsDeactivatingAccount] = useState(false);
+  const [deactivateError, setDeactivateError] = useState('');
+  const [deactivateMessage, setDeactivateMessage] = useState('');
 
   useEffect(() => {
     // localStorage에서 사용자 정보 가져오기
@@ -178,6 +184,47 @@ function Home() {
     }
   };
 
+  const handleDeactivateAccount = async () => {
+    if (isDeactivatingAccount) return;
+
+    const confirmed = window.confirm('정말로 계정을 비활성화하시겠습니까? 되돌릴 수 없습니다.');
+    if (!confirmed) {
+      return;
+    }
+
+    setDeactivateError('');
+    setDeactivateMessage('');
+    setIsDeactivatingAccount(true);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/auth/deactivate', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setDeactivateError(data.msg || '계정 비활성화에 실패했습니다.');
+        setIsDeactivatingAccount(false);
+        return;
+      }
+
+      setDeactivateMessage('계정이 비활성화되었습니다. 잠시 후 로그아웃됩니다.');
+
+      setTimeout(() => {
+        handleLogout();
+      }, 1500);
+    } catch (err) {
+      console.error('Deactivate account error:', err);
+      setDeactivateError('서버에 연결할 수 없습니다.');
+      setIsDeactivatingAccount(false);
+    }
+  };
+
   const getStatusText = (status) => {
     const statusMap = {
       'PROCESSING': '처리 중',
@@ -193,6 +240,8 @@ function Home() {
     setIsLoadingTaskDetail(true);
     setTaskDetailError('');
     setSelectedTask(null);
+    setDeleteVideoError('');
+    setDeleteVideoMessage('');
 
     try {
       const token = localStorage.getItem('token');
@@ -220,10 +269,56 @@ function Home() {
     }
   };
 
+  const handleDeleteVideo = async (videoId) => {
+    if (!videoId || isDeletingVideo) return;
+
+    setDeleteVideoError('');
+    setDeleteVideoMessage('');
+    setIsDeletingVideo(true);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/video/${videoId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setDeleteVideoError(data.msg || '비디오 삭제에 실패했습니다.');
+        setIsDeletingVideo(false);
+        return;
+      }
+
+      setDeleteVideoMessage('비디오 상태가 DELETED로 변경되었습니다.');
+      setSelectedTask(prev => {
+        if (!prev || !prev.video) return prev;
+        return {
+          ...prev,
+          video: {
+            ...prev.video,
+            status: 'DELETED',
+          },
+        };
+      });
+      fetchTasks();
+      setIsDeletingVideo(false);
+    } catch (err) {
+      console.error('Delete video error:', err);
+      setDeleteVideoError('서버에 연결할 수 없습니다.');
+      setIsDeletingVideo(false);
+    }
+  };
+
   const handleCloseModal = () => {
     setIsTaskModalOpen(false);
     setSelectedTask(null);
     setTaskDetailError('');
+    setDeleteVideoError('');
+    setDeleteVideoMessage('');
   };
 
   return (
@@ -237,10 +332,28 @@ function Home() {
                 환영합니다, {user.user_id || user.name || '사용자'}님!
               </span>
             )}
+            <button 
+              onClick={() => navigate('/traffic-stats')} 
+              className="traffic-stats-button"
+            >
+              통행량 조회
+            </button>
+            <button
+              onClick={handleDeactivateAccount}
+              className="deactivate-button"
+              disabled={isDeactivatingAccount}
+            >
+              {isDeactivatingAccount ? '처리 중...' : '회원탈퇴'}
+            </button>
             <button onClick={handleLogout} className="logout-button">
               로그아웃
             </button>
           </div>
+          {(deactivateError || deactivateMessage) && (
+            <div className={`deactivate-feedback ${deactivateError ? 'error' : 'success'}`}>
+              {deactivateError || deactivateMessage}
+            </div>
+          )}
         </div>
       </header>
 
@@ -249,6 +362,12 @@ function Home() {
           <div className="welcome-card">
             <h2>로그인에 성공했습니다!</h2>
             <p>홈 페이지에 오신 것을 환영합니다.</p>
+            <button 
+              onClick={() => navigate('/traffic-stats')} 
+              className="welcome-traffic-button"
+            >
+              자동차 통행량 조회하기
+            </button>
           </div>
 
           <div className="upload-card">
@@ -475,6 +594,24 @@ function Home() {
                           </span>
                         </div>
                       </div>
+                      {(deleteVideoError || deleteVideoMessage) && (
+                        <div className={deleteVideoError ? 'modal-error' : 'modal-success'}>
+                          {deleteVideoError || deleteVideoMessage}
+                        </div>
+                      )}
+                      <button
+                        className="delete-video-button"
+                        onClick={() => handleDeleteVideo(selectedTask.video.video_id)}
+                        disabled={
+                          isDeletingVideo ||
+                          !selectedTask.video.video_id ||
+                          selectedTask.video.status === 'DELETED'
+                        }
+                      >
+                        {selectedTask.video.status === 'DELETED'
+                          ? '이미 삭제됨'
+                          : (isDeletingVideo ? '삭제 중...' : '비디오 삭제')}
+                      </button>
                     </div>
                   )}
 

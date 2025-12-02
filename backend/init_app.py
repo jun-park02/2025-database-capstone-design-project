@@ -1,10 +1,11 @@
 from flask import Flask
 from module.login import bcrypt
 
-def create_app(config_object=None):
+def create_app():
     app = Flask(__name__)
-    if config_object:
-        app.config.from_object(config_object)
+
+    # if config_object:
+    #     app.config.from_object(config_object)
 
     bcrypt.init_app(app)
 

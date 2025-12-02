@@ -66,6 +66,11 @@ login_parser = reqparse.RequestParser()
 login_parser.add_argument("user_id", type=str, location="form", required=True)
 login_parser.add_argument("password", type=str, location="form", required=True)
 
+forgot_password_parser = reqparse.RequestParser()
+forgot_password_parser.add_argument("user_id", type=str, location="form", required=True)
+forgot_password_parser.add_argument("user_email", type=str, location="form", required=True)
+forgot_password_parser.add_argument("new_password", type=str, location="form", required=True)
+
 @auth_ns.route("/login")
 class Auth(Resource):
     @auth_ns.doc(
@@ -108,6 +113,48 @@ class Auth(Resource):
             }, 401
 
 
+# ---------------------------------------- 비밀번호 찾기/재설정 ----------------------------------------
+    @auth_ns.route("/forgot-password")
+    class ForgotPassword(Resource):
+        @auth_ns.doc(
+            description="아이디와 이메일 검증 후 새 비밀번호로 재설정",
+            responses={
+                200: "비밀번호 재설정 성공",
+                404: "일치하는 사용자 정보 없음",
+                500: "서버 오류"
+            }
+        )
+        @auth_ns.expect(forgot_password_parser)
+        def post(self):
+            args = forgot_password_parser.parse_args()
+            user_id = args.get("user_id")
+            user_email = args.get("user_email")
+            new_password = args.get("new_password")
+
+            try:
+                cursor.execute(
+                    "SELECT user_id FROM users WHERE user_id = %s AND user_email = %s",
+                    (user_id, user_email),
+                )
+                row = cursor.fetchone()
+
+                if row is None:
+                    return {"msg": "해당 정보의 사용자를 찾을 수 없습니다."}, 404
+
+                new_password_hash = bcrypt.generate_password_hash(new_password).decode("utf-8")
+                cursor.execute(
+                    "UPDATE users SET password_hash = %s WHERE user_id = %s",
+                    (new_password_hash, user_id),
+                )
+                db.commit()
+
+                return {"msg": "비밀번호가 성공적으로 재설정되었습니다."}, 200
+
+            except Exception as e:
+                db.rollback()
+                return {"msg": "비밀번호 재설정 중 오류가 발생했습니다.", "error": str(e)}, 500
+
+
 # ----------------------------------------------------------------------------------------------------------------
 # refresh 토큰만 허용하기 위해, "refresh=True"를 사용
 @auth_ns.route("/refresh")
@@ -125,3 +172,41 @@ class Auth(Resource):
         identity = get_jwt_identity()
         access_token = create_access_token(identity=identity)
         return jsonify(access_token=access_token)
+
+
+@auth_ns.route("/deactivate")
+class DeactivateAccount(Resource):
+    @auth_ns.doc(
+        description="로그인한 사용자의 계정을 INACTIVE 상태로 변경",
+        security=[{"BearerAuth": []}],
+        responses={
+            200: "계정 비활성화 완료",
+            400: "이미 비활성화된 계정",
+            401: "인증 실패",
+            500: "서버 오류"
+        }
+    )
+    @jwt_required()
+    def post(self):
+        user_id = str(get_jwt_identity())
+
+        try:
+            cursor.execute(
+                """
+                UPDATE users
+                SET status = 'INACTIVE'
+                WHERE user_id = %s AND status != 'INACTIVE'
+                """,
+                (user_id,),
+            )
+
+            if cursor.rowcount == 0:
+                db.rollback()
+                return {"msg": "이미 비활성화된 계정이거나 존재하지 않는 사용자입니다."}, 400
+
+            db.commit()
+            return {"msg": "계정이 비활성화되었습니다.", "user_id": user_id}, 200
+
+        except Exception as e:
+            db.rollback()
+            return {"msg": "계정 비활성화 중 오류가 발생했습니다.", "error": str(e)}, 500
