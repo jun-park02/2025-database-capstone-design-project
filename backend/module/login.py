@@ -60,7 +60,8 @@ class Register(Resource):
             
             db.rollback()
             return {"msg": "회원가입 중 오류 발생", "error": str(e)}, 500
-# ----------------------------
+
+# ---------------------------------------- 로그인 ----------------------------------------
     
 login_parser = reqparse.RequestParser()
 login_parser.add_argument("user_id", type=str, location="form", required=True)
@@ -153,25 +154,6 @@ class Auth(Resource):
             except Exception as e:
                 db.rollback()
                 return {"msg": "비밀번호 재설정 중 오류가 발생했습니다.", "error": str(e)}, 500
-
-
-# ----------------------------------------------------------------------------------------------------------------
-# refresh 토큰만 허용하기 위해, "refresh=True"를 사용
-@auth_ns.route("/refresh")
-class Auth(Resource):
-    @auth_ns.doc(
-            description="Refresh 토큰으로 새 Access 토큰 발급",
-            security=[{"BearerAuth": []}],
-            responses={
-                200: "새 access_token 발급 성공",
-                401: "유효하지 않은 또는 만료된 refresh 토큰"
-            }
-    )
-    @jwt_required(refresh=True)
-    def post(self):
-        identity = get_jwt_identity()
-        access_token = create_access_token(identity=identity)
-        return jsonify(access_token=access_token)
 
 
 @auth_ns.route("/deactivate")

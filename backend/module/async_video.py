@@ -328,55 +328,6 @@ def process_video_task(self, user_id: str, file_path: str, video_id: int):
         raise
 
 
-# ----- API: 작업 등록 -----
-enqueue_parser = reqparse.RequestParser()
-enqueue_parser.add_argument("file_path", type=str, location="json", required=True, help="업로드된 비디오 경로")
-
-@async_ns.route("/process-video")
-class ProcessVideo(Resource):
-    @async_ns.doc(
-        description="비디오 후처리(비동기) 작업을 큐에 등록",
-        security=[{"BearerAuth": []}],
-        responses={202: "Accepted", 401: "Unauthorized"},
-    )
-    @async_ns.expect(enqueue_parser)
-    @jwt_required()
-    def post(self):
-        args = enqueue_parser.parse_args()
-        user_id = str(get_jwt_identity())
-        file_path = args["file_path"]
-
-        task = process_video_task.delay(user_id, file_path)
-
-        return {
-            "msg": "작업이 큐에 등록되었습니다",
-            "task_id": task.id,
-        }, 202
-
-
-# ----- API: 작업 상태/결과 조회 -----
-# @async_ns.route("/tasks/<string:task_id>")
-# class TaskStatus(Resource):
-#     @async_ns.doc(
-#         description="task_id로 작업 상태/결과 조회",
-#         security=[{"BearerAuth": []}],
-#         responses={200: "OK", 401: "Unauthorized"},
-#     )
-#     @jwt_required()
-#     def get(self, task_id: str):
-#         result = celery.AsyncResult(task_id)
-#         payload = {"task_id": task_id, "state": result.state}
-
-#         if result.state == "PROGRESS" and isinstance(result.info, dict):
-#             payload["meta"] = result.info
-#         elif result.state == "SUCCESS":
-#             payload["result"] = result.result
-#         elif result.state == "FAILURE":
-#             payload["error"] = str(result.info)
-#             payload["traceback"] = result.traceback
-
-#         return payload, 200
-
 def get_db_connection():
     DB_HOST = os.getenv("DB_HOST")
     DB_PORT = int(os.getenv("DB_PORT"))

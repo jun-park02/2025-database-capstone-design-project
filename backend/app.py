@@ -5,7 +5,6 @@ from module.login import auth_ns
 from module.video import video_ns
 from module.async_video import async_ns
 from module.init_db import init_db
-from module.test import test_ns
 from init_app import create_app
 from dotenv import load_dotenv
 import os, datetime
@@ -47,7 +46,6 @@ api = Api(
 jwt = JWTManager(app)
 
 api.add_namespace(auth_ns)
-api.add_namespace(test_ns)
 api.add_namespace(video_ns)
 api.add_namespace(async_ns)
 
