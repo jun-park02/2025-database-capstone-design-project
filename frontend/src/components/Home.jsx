@@ -26,6 +26,8 @@ function Home() {
   const [isDeactivatingAccount, setIsDeactivatingAccount] = useState(false);
   const [deactivateError, setDeactivateError] = useState('');
   const [deactivateMessage, setDeactivateMessage] = useState('');
+  const [isDownloadingVideo, setIsDownloadingVideo] = useState(false);
+  const [downloadVideoError, setDownloadVideoError] = useState('');
 
   useEffect(() => {
     // localStorage에서 사용자 정보 가져오기
@@ -43,7 +45,7 @@ function Home() {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/video/tasks', {
+      const response = await fetch('http://localhost:5000/tasks', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -133,7 +135,7 @@ function Home() {
       formData.append('date', date);
       formData.append('time', time);
 
-      const response = await fetch('http://localhost:5000/video/video', {
+      const response = await fetch('http://localhost:5000/videos', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -198,8 +200,8 @@ function Home() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/auth/deactivate', {
-        method: 'POST',
+      const response = await fetch('http://localhost:5000/users/me', {
+        method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -242,10 +244,11 @@ function Home() {
     setSelectedTask(null);
     setDeleteVideoError('');
     setDeleteVideoMessage('');
+    setDownloadVideoError('');
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://127.0.0.1:5000/async/tasks/${taskId}`, {
+      const response = await fetch(`http://localhost:5000/tasks/${taskId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -278,7 +281,7 @@ function Home() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/video/${videoId}`, {
+      const response = await fetch(`http://localhost:5000/videos/${videoId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -319,6 +322,60 @@ function Home() {
     setTaskDetailError('');
     setDeleteVideoError('');
     setDeleteVideoMessage('');
+    setDownloadVideoError('');
+    setDownloadVideoError('');
+  };
+
+  const handleDownloadVideo = async (videoId) => {
+    if (!videoId || isDownloadingVideo) return;
+
+    setDownloadVideoError('');
+    setIsDownloadingVideo(true);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/videos/${videoId}/download`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        setDownloadVideoError(data.msg || data.message || '비디오 다운로드에 실패했습니다.');
+        setIsDownloadingVideo(false);
+        return;
+      }
+
+      // 응답에서 파일명 추출 (Content-Disposition 헤더 또는 기본값 사용)
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `video_${videoId}_counted.mp4`;
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+
+      // Blob으로 변환하여 다운로드
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setIsDownloadingVideo(false);
+    } catch (err) {
+      console.error('Download video error:', err);
+      setDownloadVideoError('서버에 연결할 수 없습니다.');
+      setIsDownloadingVideo(false);
+    }
   };
 
   return (
@@ -599,19 +656,35 @@ function Home() {
                           {deleteVideoError || deleteVideoMessage}
                         </div>
                       )}
-                      <button
-                        className="delete-video-button"
-                        onClick={() => handleDeleteVideo(selectedTask.video.video_id)}
-                        disabled={
-                          isDeletingVideo ||
-                          !selectedTask.video.video_id ||
-                          selectedTask.video.status === 'DELETED'
-                        }
-                      >
-                        {selectedTask.video.status === 'DELETED'
-                          ? '이미 삭제됨'
-                          : (isDeletingVideo ? '삭제 중...' : '비디오 삭제')}
-                      </button>
+                      {(downloadVideoError) && (
+                        <div className="modal-error">
+                          {downloadVideoError}
+                        </div>
+                      )}
+                      <div className="video-action-buttons">
+                        {selectedTask.video.status === 'COMPLETED' && (
+                          <button
+                            className="download-video-button"
+                            onClick={() => handleDownloadVideo(selectedTask.video.video_id)}
+                            disabled={isDownloadingVideo}
+                          >
+                            {isDownloadingVideo ? '다운로드 중...' : '처리된 영상 다운로드'}
+                          </button>
+                        )}
+                        <button
+                          className="delete-video-button"
+                          onClick={() => handleDeleteVideo(selectedTask.video.video_id)}
+                          disabled={
+                            isDeletingVideo ||
+                            !selectedTask.video.video_id ||
+                            selectedTask.video.status === 'DELETED'
+                          }
+                        >
+                          {selectedTask.video.status === 'DELETED'
+                            ? '이미 삭제됨'
+                            : (isDeletingVideo ? '삭제 중...' : '비디오 삭제')}
+                        </button>
+                      </div>
                     </div>
                   )}
 

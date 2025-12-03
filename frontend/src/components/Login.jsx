@@ -210,8 +210,8 @@ function Login() {
                       formDataToSend.append('user_email', forgotPasswordData.email);
                       formDataToSend.append('new_password', forgotPasswordData.newPassword);
 
-                      const response = await fetch('http://localhost:5000/auth/forgot-password', {
-                        method: 'POST',
+                      const response = await fetch('http://localhost:5000/users/password/reset', {
+                        method: 'PUT',
                         body: formDataToSend,
                       });
 

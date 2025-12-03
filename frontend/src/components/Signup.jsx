@@ -57,7 +57,7 @@ function Signup() {
       formDataToSend.append('password', formData.password);
       formDataToSend.append('user_email', formData.email);
 
-      const response = await fetch('http://localhost:5000/auth/register', {
+      const response = await fetch('http://localhost:5000/users', {
         method: 'POST',
         body: formDataToSend,
       });

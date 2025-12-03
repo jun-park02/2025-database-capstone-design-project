@@ -1,6 +1,6 @@
 from flask_restx import Resource, Namespace, reqparse
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from flask import Flask, request
+from flask import Flask, request, send_file
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 from .database import cursor, db, execute
@@ -11,7 +11,7 @@ import os
 import json
 
 # 네임스페이스명 = Namespace('Swagger에 들어갈 제목', description='Swagger에 들어갈 설명')
-video_ns = Namespace("Video", path="/video", description="비디오 관련 APIs")
+video_ns = Namespace("Videos", path="/videos", description="비디오 관련 APIs")
 
 upload_parser = reqparse.RequestParser()
 upload_parser.add_argument("video", type=FileStorage, location="files", required=True)
@@ -19,18 +19,67 @@ upload_parser.add_argument("region", type=str, location="form", required=True)  
 upload_parser.add_argument("date", type=str, location="form", required=True)    # YYYY-MM-DD
 upload_parser.add_argument("time", type=str, location="form", required=True)    # HH:MM[:SS]
 
-@video_ns.route("/video")
-class Video(Resource):
+@video_ns.route("")
+class VideoList(Resource):
+    @video_ns.doc(
+            description="비디오 목록 조회 또는 업로드",
+            security=[{"BearerAuth": []}],
+            responses={
+                200: "비디오 목록 조회 성공",
+                201: "비디오 업로드 성공",
+                401: "Unauthorized"
+            }
+    )
+    @jwt_required()
+    def get(self):
+        """비디오 목록 조회"""
+        user_id = str(get_jwt_identity())
+
+        sql = """
+        SELECT video_id, file_path, task_id, region, recorded_at, status, created_at
+        FROM videos
+        WHERE user_id = %s AND status != 'DELETED'
+        ORDER BY created_at DESC
+        """
+        cursor.execute(sql, (user_id,))
+        rows = cursor.fetchall()
+        db.commit()
+
+        videos = []
+        for r in rows:
+            if isinstance(r, dict):
+                videos.append({
+                    "video_id": r["video_id"],
+                    "file_path": r["file_path"],
+                    "task_id": r["task_id"],
+                    "region": r["region"],
+                    "recorded_at": r["recorded_at"].isoformat() if r["recorded_at"] else None,
+                    "status": r["status"],
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                })
+            else:
+                videos.append({
+                    "video_id": r[0],
+                    "file_path": r[1],
+                    "task_id": r[2],
+                    "region": r[3],
+                    "recorded_at": r[4].isoformat() if r[4] else None,
+                    "status": r[5],
+                    "created_at": r[6].isoformat() if r[6] else None,
+                })
+
+        return videos, 200
+
     @video_ns.doc(
             description="특정 지역의 도로 CCTV 영상 업로드",
             security=[{"BearerAuth": []}],
             responses={
-                200: "업로드 성공",
+                201: "업로드 성공",
+                400: "Bad Request",
                 401: "Unauthorized"
             }
     )
     @video_ns.expect(upload_parser)
-    # JWT토큰이 있어야만 실행
     @jwt_required()
     def post(self):
         args = upload_parser.parse_args()
@@ -83,10 +132,56 @@ class Video(Resource):
 @video_ns.route("/<int:video_id>")
 class VideoDetail(Resource):
     @video_ns.doc(
+        description="비디오 상세 조회",
+        security=[{"BearerAuth": []}],
+        responses={
+            200: "조회 성공",
+            404: "존재하지 않는 영상 혹은 권한 없음",
+            401: "Unauthorized"
+        }
+    )
+    @jwt_required()
+    def get(self, video_id):
+        """비디오 상세 조회"""
+        user_id = str(get_jwt_identity())
+
+        cursor.execute("""
+            SELECT video_id, file_path, task_id, region, recorded_at, status, created_at
+            FROM videos
+            WHERE video_id = %s AND user_id = %s
+        """, (video_id, user_id))
+        row = cursor.fetchone()
+        db.commit()
+
+        if not row:
+            return {"msg": "비디오를 찾을 수 없거나 권한이 없습니다."}, 404
+
+        if isinstance(row, dict):
+            return {
+                "video_id": row["video_id"],
+                "file_path": row["file_path"],
+                "task_id": row["task_id"],
+                "region": row["region"],
+                "recorded_at": row["recorded_at"].isoformat() if row["recorded_at"] else None,
+                "status": row["status"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            }, 200
+        else:
+            return {
+                "video_id": row[0],
+                "file_path": row[1],
+                "task_id": row[2],
+                "region": row[3],
+                "recorded_at": row[4].isoformat() if row[4] else None,
+                "status": row[5],
+                "created_at": row[6].isoformat() if row[6] else None,
+            }, 200
+
+    @video_ns.doc(
         description="비디오 삭제",
         security=[{"BearerAuth": []}],
         responses={
-            200: "삭제 성공",
+            204: "삭제 성공",
             404: "존재하지 않는 영상 혹은 권한 없음",
             500: "서버 오류"
         }
@@ -112,164 +207,63 @@ class VideoDetail(Resource):
         except Exception as e:
             db.rollback()
             return {"msg": "비디오 삭제 중 오류가 발생했습니다.", "error": str(e)}, 500
-    
-# ================================================================================================
 
-@video_ns.route("/tasks")
-class VideoTasks(Resource):
+@video_ns.route("/<int:video_id>/download")
+class VideoDownload(Resource):
     @video_ns.doc(
-        description="로그인한 유저의 videos.task_id 전체 조회",
+        description="처리된 비디오 파일 다운로드",
         security=[{"BearerAuth": []}],
         responses={
-            200: "OK",
-            401: "Unauthorized"
+            200: "다운로드 성공",
+            404: "비디오를 찾을 수 없거나 권한 없음 또는 처리된 파일이 없음",
+            401: "Unauthorized",
+            500: "서버 오류"
         }
     )
     @jwt_required()
-    def get(self):
+    def get(self, video_id):
         user_id = str(get_jwt_identity())
 
-        sql = """
-        SELECT task_id, status
-        FROM videos
-        WHERE user_id = %s
-        ORDER BY created_at DESC
-        """
-        cursor.execute(sql, (user_id,))
-        rows = cursor.fetchall()
-        db.commit()
+        try:
+            # 비디오 정보 조회 및 권한 확인
+            cursor.execute("""
+                SELECT user_id, file_path, status
+                FROM videos
+                WHERE video_id = %s AND user_id = %s
+            """, (video_id, user_id))
+            video_row = cursor.fetchone()
+            db.commit()
 
-        # cursor 설정에 따라 tuple/dict 다를 수 있어서 둘 다 안전하게 처리
-        tasks = []
-        for r in rows:
-            if isinstance(r, dict):
-                tasks.append({
-                    "task_id": r["task_id"],
-                    "status": r["status"],
-                })
-            else:
-                tasks.append({
-                    "task_id": r[0],
-                    "status": r[1],
-                })
+            if not video_row:
+                return {"msg": "비디오를 찾을 수 없거나 권한이 없습니다."}, 404
 
-        return {
-            "user_id": user_id,
-            "count": len(tasks),
-            "tasks": tasks
-        }, 200
+            # 비디오가 처리 완료되지 않은 경우
+            if video_row.get("status") != "COMPLETED":
+                return {"msg": "비디오 처리가 완료되지 않았습니다."}, 404
 
-# ================================================================================================
+            # 원본 파일 경로에서 파일명 추출
+            original_file_path = video_row.get("file_path")
+            original_filename = os.path.basename(original_file_path)
+            base_name = os.path.splitext(original_filename)[0]
+            
+            # 처리된 비디오 파일 경로 생성
+            processed_dir = os.path.join("processed_video", user_id)
+            processed_filename = f"{base_name}_counted.mp4"
+            processed_file_path = os.path.join(processed_dir, processed_filename)
 
-statistics_parser = reqparse.RequestParser()
-statistics_parser.add_argument("region", type=str, location="args", required=False)
-statistics_parser.add_argument("date", type=str, location="args", required=False)  # YYYY-MM-DD
-statistics_parser.add_argument("time", type=str, location="args", required=False)  # HH:MM
+            # 파일 존재 확인
+            if not os.path.exists(processed_file_path):
+                return {"msg": "처리된 비디오 파일을 찾을 수 없습니다."}, 404
 
-@video_ns.route("/statistics")
-class VideoStatistics(Resource):
-    @video_ns.doc(
-        description="통행량 통계 조회 API",
-        security=[{"BearerAuth": []}],
-        responses={
-            200: "통계 조회 성공",
-            401: "Unauthorized"
-        }
-    )
-    @video_ns.expect(statistics_parser)
-    @jwt_required()
-    def get(self):
-        user_id = str(get_jwt_identity())
-        args = statistics_parser.parse_args()
-        region = args.get("region")
-        date = args.get("date")
-        time = args.get("time")
+            # 파일 다운로드
+            return send_file(
+                processed_file_path,
+                as_attachment=True,
+                download_name=processed_filename,
+                mimetype='video/mp4'
+            )
 
-        print(region)
-        print(date)
-        print(time)
-
-        # 기본 쿼리 구성
-        sql = """
-        SELECT 
-            v.video_id,
-            v.region,
-            v.recorded_at,
-            vc.created_at AS counted_at,
-            vc.total_forward,
-            vc.total_backward,
-            vc.per_class_forward,
-            vc.per_class_backward
-        FROM videos v
-        INNER JOIN vehicle_counts vc ON v.video_id = vc.video_id
-        WHERE v.user_id = %s
-          AND v.status != 'DELETED'
-        """
-        params = [user_id]
-
-        # 필터 조건 추가
-        if region:
-            sql += " AND v.region = %s"
-            params.append(region)
-
-        if date:
-            sql += " AND DATE(v.recorded_at) = %s"
-            params.append(date)
-
-        if time:
-            # HH:MM 형식으로 시간 비교 (분 단위까지)
-            sql += " AND TIME_FORMAT(v.recorded_at, '%%H:%%i') = %s"
-            params.append(time)
-
-        sql += " ORDER BY v.recorded_at DESC"
-
-        cursor.execute(sql, tuple(params))
-        rows = cursor.fetchall()
-        db.commit()
-
-        # JSON 필드를 안전하게 파싱하는 헬퍼 함수
-        def _loads_json(v):
-            if v is None:
-                return {}
-            if isinstance(v, (dict, list)):
-                return v
-            try:
-                return json.loads(v)
-            except Exception:
-                return {}
-
-        # 응답 형식에 맞게 변환
-        statistics = []
-        for row in rows:
-            if isinstance(row, dict):
-                statistics.append({
-                    "video_id": row["video_id"],
-                    "region": row["region"],
-                    "recorded_at": row["recorded_at"].isoformat() if row["recorded_at"] else None,
-                    "counted_at": row["counted_at"].isoformat() if row["counted_at"] else None,
-                    "vehicle_counts": {
-                        "total_forward": row["total_forward"],
-                        "total_backward": row["total_backward"],
-                        "per_class_forward": _loads_json(row.get("per_class_forward")),
-                        "per_class_backward": _loads_json(row.get("per_class_backward"))
-                    }
-                })
-            else:
-                # tuple인 경우 (DictCursor를 사용하므로 일반적으로 dict)
-                statistics.append({
-                    "video_id": row[0],
-                    "region": row[1],
-                    "recorded_at": row[2].isoformat() if row[2] else None,
-                    "counted_at": row[3].isoformat() if row[3] else None,
-                    "vehicle_counts": {
-                        "total_forward": row[4],
-                        "total_backward": row[5],
-                        "per_class_forward": _loads_json(row[6] if len(row) > 6 else None),
-                        "per_class_backward": _loads_json(row[7] if len(row) > 7 else None)
-                    }
-                })
-
-        print(statistics)
-
-        return statistics, 200
+        except Exception as e:
+            db.rollback()
+            return {"msg": "비디오 다운로드 중 오류가 발생했습니다.", "error": str(e)}, 500
     

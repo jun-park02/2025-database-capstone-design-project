@@ -3,7 +3,9 @@ from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from module.login import auth_ns
 from module.video import video_ns
-from module.async_video import async_ns
+from module.tasks import task_ns
+from module.statistics import statistics_ns
+from module.users import users_ns
 from module.init_db import init_db
 from init_app import create_app
 from dotenv import load_dotenv
@@ -46,8 +48,10 @@ api = Api(
 jwt = JWTManager(app)
 
 api.add_namespace(auth_ns)
+api.add_namespace(users_ns)
 api.add_namespace(video_ns)
-api.add_namespace(async_ns)
+api.add_namespace(task_ns)
+api.add_namespace(statistics_ns)
 
 if __name__ == "__main__":
     app.run(debug=True)

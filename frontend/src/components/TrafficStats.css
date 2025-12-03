@@ -263,6 +263,72 @@
   opacity: 0.9;
 }
 
+.type-summary-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.type-summary-section h4 {
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+  text-align: center;
+  opacity: 0.95;
+}
+
+.type-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.type-summary-item {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.type-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.type-summary-name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.type-summary-total {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.type-summary-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.type-summary-detail {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+
+.type-detail-label {
+  opacity: 0.9;
+}
+
+.type-detail-value {
+  font-weight: 600;
+}
+
 .traffic-data-list {
   display: flex;
   flex-direction: column;
@@ -388,6 +454,51 @@
 .class-count {
   color: #667eea;
   font-weight: 600;
+}
+
+.class-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.class-detail-item {
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 1rem;
+  border: 1px solid #e0e0e0;
+}
+
+.class-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #ddd;
+}
+
+.class-detail-name {
+  font-weight: 600;
+  color: #333;
+  font-size: 1rem;
+}
+
+.class-detail-total {
+  font-weight: 700;
+  color: #667eea;
+  font-size: 1.1rem;
+}
+
+.class-detail-breakdown {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.class-breakdown-item {
+  color: #666;
 }
 
 /* 반응형 디자인 */

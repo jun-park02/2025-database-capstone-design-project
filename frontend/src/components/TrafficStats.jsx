@@ -73,7 +73,7 @@ function TrafficStats() {
       if (filters.date) params.append('date', filters.date);
       if (filters.time) params.append('time', filters.time);
 
-      const response = await fetch(`http://localhost:5000/video/statistics?${params.toString()}`, {
+      const response = await fetch(`http://localhost:5000/statistics/videos?${params.toString()}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -134,11 +134,28 @@ function TrafficStats() {
   const totalSummary = useMemo(() => {
     let totalForward = 0;
     let totalBackward = 0;
+    const typeCounts = {
+      bus: { forward: 0, backward: 0 },
+      car: { forward: 0, backward: 0 },
+      motorcycle: { forward: 0, backward: 0 },
+      truck: { forward: 0, backward: 0 },
+    };
 
     trafficData.forEach((item) => {
       if (item.vehicle_counts) {
         totalForward += item.vehicle_counts.total_forward || 0;
         totalBackward += item.vehicle_counts.total_backward || 0;
+        
+        // per_type 배열에서 차종별 합계 계산
+        if (item.vehicle_counts.per_type && Array.isArray(item.vehicle_counts.per_type)) {
+          item.vehicle_counts.per_type.forEach((typeData) => {
+            const type = typeData.vehicle_type;
+            if (typeCounts[type]) {
+              typeCounts[type].forward += typeData.forward_count || 0;
+              typeCounts[type].backward += typeData.backward_count || 0;
+            }
+          });
+        }
       } else {
         totalForward += item.total_forward || 0;
         totalBackward += item.total_backward || 0;
@@ -149,6 +166,7 @@ function TrafficStats() {
       totalForward,
       totalBackward,
       total: totalForward + totalBackward,
+      typeCounts,
     };
   }, [trafficData]);
 
@@ -278,6 +296,41 @@ function TrafficStats() {
                       </span>
                     </div>
                   </div>
+                  
+                  {/* 차종별 합계 */}
+                  <div className="type-summary-section">
+                    <h4>차종별 합계</h4>
+                    <div className="type-summary-grid">
+                      {Object.entries(totalSummary.typeCounts).map(([type, counts]) => {
+                        const typeLabels = {
+                          bus: '버스',
+                          car: '승용차',
+                          motorcycle: '오토바이',
+                          truck: '트럭',
+                        };
+                        const total = counts.forward + counts.backward;
+                        return (
+                          <div key={type} className="type-summary-item">
+                            <div className="type-summary-header">
+                              <span className="type-summary-name">{typeLabels[type] || type}</span>
+                              <span className="type-summary-total">{total.toLocaleString()}대</span>
+                            </div>
+                            <div className="type-summary-details">
+                              <div className="type-summary-detail">
+                                <span className="type-detail-label">정방향:</span>
+                                <span className="type-detail-value">{counts.forward.toLocaleString()}대</span>
+                              </div>
+                              <div className="type-summary-detail">
+                                <span className="type-detail-label">역방향:</span>
+                                <span className="type-detail-value">{counts.backward.toLocaleString()}대</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
                   <div className="total-summary-count">
                     조회된 데이터: {trafficData.length}건
                   </div>
@@ -341,30 +394,40 @@ function TrafficStats() {
                               </span>
                             </div>
 
-                            {item.vehicle_counts.per_class_forward && (
+                            {/* 차종별 상세 정보 */}
+                            {item.vehicle_counts.per_type && Array.isArray(item.vehicle_counts.per_type) && item.vehicle_counts.per_type.length > 0 && (
                               <div className="data-subsection">
-                                <h5>정방향 차종별</h5>
-                                <div className="class-counts">
-                                  {Object.entries(item.vehicle_counts.per_class_forward).map(([vehicleType, count]) => (
-                                    <div key={vehicleType} className="class-count-item">
-                                      <span className="class-name">{vehicleType}:</span>
-                                      <span className="class-count">{count}대</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {item.vehicle_counts.per_class_backward && (
-                              <div className="data-subsection">
-                                <h5>역방향 차종별</h5>
-                                <div className="class-counts">
-                                  {Object.entries(item.vehicle_counts.per_class_backward).map(([vehicleType, count]) => (
-                                    <div key={vehicleType} className="class-count-item">
-                                      <span className="class-name">{vehicleType}:</span>
-                                      <span className="class-count">{count}대</span>
-                                    </div>
-                                  ))}
+                                <h5>차종별 상세</h5>
+                                <div className="class-details-grid">
+                                  {item.vehicle_counts.per_type.map((typeData) => {
+                                    const typeLabels = {
+                                      bus: '버스',
+                                      car: '승용차',
+                                      motorcycle: '오토바이',
+                                      truck: '트럭',
+                                    };
+                                    const forwardCount = typeData.forward_count || 0;
+                                    const backwardCount = typeData.backward_count || 0;
+                                    const total = forwardCount + backwardCount;
+                                    const type = typeData.vehicle_type;
+                                    
+                                    return (
+                                      <div key={type} className="class-detail-item">
+                                        <div className="class-detail-header">
+                                          <span className="class-detail-name">{typeLabels[type] || type}</span>
+                                          <span className="class-detail-total">{total}대</span>
+                                        </div>
+                                        <div className="class-detail-breakdown">
+                                          <span className="class-breakdown-item">
+                                            정: {forwardCount}대
+                                          </span>
+                                          <span className="class-breakdown-item">
+                                            역: {backwardCount}대
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}

@@ -2,7 +2,7 @@
 from flask_restx import Namespace, Resource, reqparse
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from celery import Celery
-from .database import cursor, db
+from .database import cursor, db, get_conn
 from ultralytics import YOLO
 import os, time
 import json
@@ -293,22 +293,45 @@ def process_video_task(self, user_id: str, file_path: str, video_id: int):
     try:
         result = count_vehicles_in_video(self, user_id, input_path)
 
-        cursor.execute("""
-            INSERT INTO vehicle_counts (
-                video_id, user_id,
-                total_forward, total_backward,
-                per_class_forward, per_class_backward,
-                line_a_x, line_a_y, line_b_x, line_b_y
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            video_id, user_id,
-            int(result.get("total_forward", 0)),
-            int(result.get("total_backward", 0)),
-            json.dumps(result.get("per_class_forward", {}), ensure_ascii=False),
-            json.dumps(result.get("per_class_backward", {}), ensure_ascii=False),
-            int(result["line_a"][0]), int(result["line_a"][1]),
-            int(result["line_b"][0]), int(result["line_b"][1]),
-        ))
+        # 차량 타입 이름을 DB ENUM 값으로 매핑 (motorbike -> motorcycle)
+        def normalize_vehicle_type(vehicle_name: str) -> str:
+            vehicle_name_lower = vehicle_name.lower()
+            if vehicle_name_lower in ['bus', 'car', 'truck', 'motorcycle']:
+                return vehicle_name_lower
+            elif vehicle_name_lower in ['motorbike', 'bike']:
+                return 'motorcycle'
+            else:
+                # 알 수 없는 타입은 무시하거나 기본값으로 처리
+                return None
+
+        # per_class_forward와 per_class_backward에서 각 차량 타입별로 레코드 생성
+        per_class_forward = result.get("per_class_forward", {})
+        per_class_backward = result.get("per_class_backward", {})
+
+        # 모든 차량 타입 수집
+        all_vehicle_types = set(per_class_forward.keys()) | set(per_class_backward.keys())
+
+        for vehicle_type_name in all_vehicle_types:
+            normalized_type = normalize_vehicle_type(vehicle_type_name)
+            if normalized_type is None:
+                continue  # 지원하지 않는 차량 타입은 건너뜀
+
+            forward_count = per_class_forward.get(vehicle_type_name, 0)
+            backward_count = per_class_backward.get(vehicle_type_name, 0)
+
+            # 둘 다 0이면 레코드를 생성하지 않음 (선택사항)
+            if forward_count == 0 and backward_count == 0:
+                continue
+
+            cursor.execute("""
+                INSERT INTO vehicle_counts (
+                    video_id, user_id, vehicle_type,
+                    forward_count, backward_count
+                ) VALUES (%s, %s, %s, %s, %s)
+            """, (
+                video_id, user_id, normalized_type,
+                int(forward_count), int(backward_count),
+            ))
 
         sql = """
             UPDATE videos SET status='COMPLETED' WHERE task_id=%s
@@ -326,134 +349,3 @@ def process_video_task(self, user_id: str, file_path: str, video_id: int):
         cursor.execute(sql, (task_id,))
         db.commit()
         raise
-
-
-def get_db_connection():
-    DB_HOST = os.getenv("DB_HOST")
-    DB_PORT = int(os.getenv("DB_PORT"))
-    DB_USER = os.getenv("DB_USER")
-    DB_PASSWORD = os.getenv("DB_PASSWORD")
-    DB_NAME = os.getenv("DB_NAME")
-
-    return pymysql.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        database=DB_NAME,
-        charset="utf8mb4",
-        cursorclass=pymysql.cursors.DictCursor,
-        autocommit=False,
-    )
-
-@async_ns.route("/tasks/<string:task_id>")
-class TaskStatus(Resource):
-    @async_ns.doc(
-        description="task_id로 작업 상태/결과 조회 (완료면 vehicle_counts DB 결과 반환)",
-        security=[{"BearerAuth": []}],
-        responses={200: "OK", 401: "Unauthorized"},
-    )
-    @jwt_required()
-    def get(self, task_id: str):
-        user_id = str(get_jwt_identity())
-
-        # 1) Celery 상태(진행중/실패 등 기본 정보)
-        result = celery.AsyncResult(task_id)
-        payload = {"task_id": task_id, "state": result.state}
-
-        if result.state == "PROGRESS" and isinstance(result.info, dict):
-            payload["meta"] = result.info
-            return payload, 200
-
-        if result.state == "FAILURE":
-            payload["error"] = str(result.info)
-            payload["traceback"] = result.traceback
-            return payload, 200
-
-        # 2) SUCCESS(또는 DB상 COMPLETED)일 때: vehicle_counts에서 가져오기
-        if result.state == "SUCCESS":
-            db = get_db_connection()
-            try:
-                with db.cursor() as cursor:
-                    # task_id -> video_id 찾고, vehicle_counts 조인
-                    sql = """
-                    SELECT
-                        v.video_id, v.user_id, v.region, v.recorded_at, v.file_path, v.status, v.created_at,
-                        vc.vehicle_count_id,
-                        vc.total_forward, vc.total_backward,
-                        vc.per_class_forward, vc.per_class_backward,
-                        vc.line_a_x, vc.line_a_y, vc.line_b_x, vc.line_b_y,
-                        vc.created_at AS counted_at
-                    FROM videos v
-                    LEFT JOIN vehicle_counts vc ON vc.video_id = v.video_id
-                    WHERE v.task_id = %s AND v.user_id = %s
-                    ORDER BY vc.created_at DESC
-                    LIMIT 1
-                    """
-                    cursor.execute(sql, (task_id, user_id))
-                    row = cursor.fetchone()
-
-                db.commit()
-            except Exception:
-                db.rollback()
-                raise
-            finally:
-                db.close()
-
-            # 해당 task_id가 내 것이 아니거나 아직 videos에 없는 경우
-            if not row:
-                # 그래도 celery는 SUCCESS니까 최소한 celery result를 내려줌
-                payload["result"] = result.result
-                payload["warning"] = "DB에서 task_id에 해당하는 video/videos 레코드를 찾지 못했습니다."
-                return payload, 200
-
-            # vehicle_counts가 아직 안 들어온 경우(레이스 컨디션)
-            if row.get("vehicle_count_id") is None:
-                payload["video"] = {
-                    "video_id": row["video_id"],
-                    "region": row.get("region"),
-                    "recorded_at": (row.get("recorded_at").isoformat(sep=" ") if row.get("recorded_at") else None),
-                    "file_path": row.get("file_path"),
-                    "status": row.get("status"),
-                }
-                payload["warning"] = "작업은 SUCCESS인데 vehicle_counts 저장이 아직 완료되지 않았습니다."
-                # 필요하면 celery 결과도 같이 제공
-                payload["result"] = result.result
-                return payload, 200
-
-            # JSON 컬럼(또는 TEXT로 저장된 JSON) dict로 복원
-            def _loads(v):
-                if v is None:
-                    return {}
-                if isinstance(v, (dict, list)):
-                    return v
-                try:
-                    return json.loads(v)
-                except Exception:
-                    return {"_raw": v}
-
-            payload["video"] = {
-                "video_id": row["video_id"],
-                "region": row.get("region"),
-                "recorded_at": (row.get("recorded_at").isoformat(sep=" ") if row.get("recorded_at") else None),
-                "file_path": row.get("file_path"),
-                "status": row.get("status"),
-            }
-            payload["vehicle_counts"] = {
-                "vehicle_count_id": row["vehicle_count_id"],
-                "total_forward": row.get("total_forward", 0),
-                "total_backward": row.get("total_backward", 0),
-                "per_class_forward": _loads(row.get("per_class_forward")),
-                "per_class_backward": _loads(row.get("per_class_backward")),
-                "line_a": [row.get("line_a_x"), row.get("line_a_y")],
-                "line_b": [row.get("line_b_x"), row.get("line_b_y")],
-                "line_tol": row.get("line_tol"),
-                "frames_processed": row.get("frames_processed"),
-                "fps": row.get("fps"),
-                "output_path": row.get("output_path"),
-                "counted_at": (row.get("counted_at").isoformat(sep=" ") if row.get("counted_at") else None),
-            }
-            return payload, 200
-
-        # 나머지 상태(PENDING/STARTED/RETRY 등)
-        return payload, 200
