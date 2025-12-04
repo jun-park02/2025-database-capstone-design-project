@@ -16,8 +16,9 @@ init_db()
 app = create_app()
 
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-JWT_ACCESS_TOKEN_EXPIRES = datetime.timedelta(days=int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES")))
-JWT_REFRESH_TOKEN_EXPIRES = datetime.timedelta(days=int(os.getenv("JWT_REFRESH_TOKEN_EXPIRES")))
+JWT_ACCESS_TOKEN_EXPIRES = datetime.timedelta(days=int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES", 1)))
+
+JWT_REFRESH_TOKEN_EXPIRES = datetime.timedelta(days=int(os.getenv("JWT_REFRESH_TOKEN_EXPIRES", 7)))
 
 app.config["JWT_SECRET_KEY"] = JWT_SECRET_KEY
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = JWT_ACCESS_TOKEN_EXPIRES
